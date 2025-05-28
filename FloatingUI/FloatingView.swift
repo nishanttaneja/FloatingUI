@@ -7,8 +7,6 @@
 
 import UIKit
 
-var shouldDisplayExpendedLarge: Bool = false
-
 final class FloatingView: UIView {
     enum FloatingViewState {
         case collapsed, expanded, expandedLarge
@@ -37,8 +35,9 @@ final class FloatingView: UIView {
     private var touchLocationOffset: CGPoint?
     private let magneticRangeOfAttraction: CGFloat = 150
     private let permittedEdgeAlignments: [FloatingViewEdgeAlignment] = [.left, .right, .top, .bottom]
-    private var currentEdgeAlignment: FloatingViewEdgeAlignment = .left
+    private(set) var currentEdgeAlignment: FloatingViewEdgeAlignment = .left
     private var currentState: FloatingViewState = .collapsed
+    var preferredExpandedState: FloatingViewState = .expanded
     var didUpdateToState: ((_ state: FloatingViewState) -> Void)?
     var didAlignToEdge: ((_ edge: FloatingViewEdgeAlignment) -> Void)?
     var didSelectActionType: ((_ actionType: ActionType) -> Void)?
@@ -118,7 +117,6 @@ final class FloatingView: UIView {
     @objc private func handleActionType(forTap gestureRecognizer: UITapGestureRecognizer) {
         guard let tag = gestureRecognizer.view?.tag, let actionType = ActionType(rawValue: tag) else { print(#function, ": `ActionType` not found"); return }
         print(#function, actionType)
-        shouldDisplayExpendedLarge = actionType == .start
         didSelectActionType?(actionType)
     }
     private func configActionTypes() {
@@ -134,8 +132,7 @@ final class FloatingView: UIView {
     @objc private func handleArrowTap(gestureRecognizer: UITapGestureRecognizer) {
         switch currentState {
         case .collapsed:
-            // If recording then update to expandedLarge or else recording
-            updateState(to: shouldDisplayExpendedLarge ? .expandedLarge : .expanded)
+            updateState(to: preferredExpandedState)
         case .expanded, .expandedLarge:
             updateState(to: .collapsed)
         }
@@ -146,7 +143,7 @@ final class FloatingView: UIView {
         arrowView.addGestureRecognizer(arrowTapGestureRecognizer)
     }
     /// Updates state of view.
-    private func updateState(to newState: FloatingViewState) {
+    func updateState(to newState: FloatingViewState) {
         currentState = newState
         startView.removeFromSuperview()
         interruptView.removeFromSuperview()
@@ -192,7 +189,7 @@ final class FloatingView: UIView {
     
     // MARK: Align
     /// Aligns the view to a specific edge.
-    private func alignView(to edge: FloatingViewEdgeAlignment) {
+    func alignView(to edge: FloatingViewEdgeAlignment) {
         guard permittedEdgeAlignments.contains(edge) else {
             if let firstEdgeAlignment = permittedEdgeAlignments.first {
                 alignView(to: firstEdgeAlignment)
@@ -233,16 +230,18 @@ final class FloatingView: UIView {
         }
         let halfWidthOfSuperview = superviewSize.width/2
         let halfHeightOfSuperview = superviewSize.height/2
-        if halfWidthOfSuperview > frame.origin.x,
+        let uptoHalfOfWidth = frame.origin.x + (frame.width/2)
+        let uptoHalfOfHeight = frame.origin.y + (frame.height/2)
+        if halfWidthOfSuperview > uptoHalfOfWidth,
            frame.origin.x <= magneticRangeOfAttraction {
             alignView(to: .left)
-        } else if halfWidthOfSuperview <= frame.origin.x,
+        } else if halfWidthOfSuperview <= uptoHalfOfWidth,
                   superviewSize.width-frame.origin.x-frame.width <= magneticRangeOfAttraction {
             alignView(to: .right)
-        } else if halfHeightOfSuperview > frame.origin.y,
+        } else if halfHeightOfSuperview > uptoHalfOfHeight,
                   frame.origin.y <= magneticRangeOfAttraction {
             alignView(to: .top)
-        } else if halfHeightOfSuperview <= frame.origin.y,
+        } else if halfHeightOfSuperview <= uptoHalfOfHeight,
                   superviewSize.height-frame.origin.y-frame.height <= magneticRangeOfAttraction {
             alignView(to: .bottom)
         } else {
